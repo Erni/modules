@@ -43,7 +43,7 @@ resource "aws_security_group" "instance" {
   ingress {
     from_port   = var.server_port
     to_port     = var.server_port
-    protocol    = loca.tcp_protocol
+    protocol    = local.tcp_protocol
     cidr_blocks = local.all_ips
   }
 }
