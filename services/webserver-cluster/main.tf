@@ -106,24 +106,7 @@ resource "aws_lb_listener" "http" {
   }
 }
 
-# 3 - Define the LB Listener Rule, forwarding to a Target Group
-resource "aws_lb_listener_rule" "asg" {
-  listener_arn = aws_lb_listener.http.arn
-  priority     = 100
-
-  condition {
-    path_pattern {
-      values = ["*"]
-    }
-  }
-
-  action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.asg.arn
-  }
-}
-
-# 4 - Define Target Group, listening in var.server_port
+# 3 - Define Target Group, listening in var.server_port
 resource "aws_lb_target_group" "asg" {
 
   name = "${var.cluster_name}-asg"
@@ -143,8 +126,29 @@ resource "aws_lb_target_group" "asg" {
   }
 }
 
-# 5 - Define ASG adding instances to the previous target group
+# 4 - Define the LB Listener Rule, forwarding to a Target Group
+resource "aws_lb_listener_rule" "asg" {
+  listener_arn = aws_lb_listener.http.arn
+  priority     = 100
+
+  condition {
+    path_pattern {
+      values = ["*"]
+    }
+  }
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.asg.arn
+  }
+}
+
+# 5 - Finally, define ASG, which adds instances to the Target Group
 resource "aws_autoscaling_group" "example" {
+  # Explicitely depend on the launch configuration´s name so each time it is
+  # modified (and therefore replaced), this ASG is also replaced
+  name = "${var.cluster_name}-${aws_launch_configuration.example.name}"
+
   launch_configuration = aws_launch_configuration.example.name
   vpc_zone_identifier  = data.aws_subnets.default.ids
 
@@ -153,6 +157,16 @@ resource "aws_autoscaling_group" "example" {
 
   min_size = var.min_size
   max_size = var.max_size
+
+  # Wait for at least this many instances to pass healthchecks before
+  # considering the ASG deployment complet
+  min_elb_capacity = var.min_size
+
+  # When replacing this ASG, create the replacement first,
+  # and only delete the original after
+  lifecycle {
+    create_before_destroy = true
+  }
 
   tag {
     key                 = "Name"
@@ -167,7 +181,7 @@ resource "aws_autoscaling_group" "example" {
 # Define the AWS Launch Configuration ##########################
 ################################################################
 resource "aws_launch_configuration" "example" {
-  image_id        = "ami-0fb653ca2d3203ac1"
+  image_id        = var.ami
   instance_type   = var.instance_type
   security_groups = [aws_security_group.instance.id]
 
@@ -175,6 +189,7 @@ resource "aws_launch_configuration" "example" {
     server_port = var.server_port
     db_address  = data.terraform_remote_state.db.outputs.address
     db_port     = data.terraform_remote_state.db.outputs.port
+    server_text = var.server_text
   })
 
   # Required when using a launch configuration with an auto scaling group.
