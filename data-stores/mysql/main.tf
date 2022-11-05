@@ -7,16 +7,6 @@ terraform {
   }
 }
 
-terraform {
-  backend "s3" {
-    bucket         = "ernesto-reig-terraform-st"
-    key            = "stage/data-stores/mysql/terraform.tfstate"
-    region         = "us-east-2"
-    dynamodb_table = "terraform-locks"
-    encrypt        = true
-  }
-}
-
 resource "aws_db_instance" "example" {
   identifier_prefix   = "ernesto-reig-tf-"
   allocated_storage   = 10
@@ -32,6 +22,6 @@ resource "aws_db_instance" "example" {
   # Only specify these params if replicate_source_db is not set
   engine   = var.replicate_source_db == null? "mysql" : null
   db_name  = var.replicate_source_db == null? var.db_name : null
-  username = var.replicate_source_db == null? var.username : null
-  password = var.replicate_source_db == null? var.username : null
+  username = var.replicate_source_db == null? var.db_username : null
+  password = var.replicate_source_db == null? var.db_password : null
 }
